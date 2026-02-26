@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Status {
+  PENDING
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  email     String   @default("")
+  phone     String   @default("")
+  company   String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shipment {
+  id            String         @id @default(cuid())
+  trackingId    String         @unique
+  origin        String
+  destination   String
+  status        Status         @default(PENDING)
+  weight        Float          @default(0)
+  clientName    String         @default("")
+  senderName    String         @default("")
+  senderEmail   String         @default("")
+  senderPhone   String         @default("")
+  senderAddress String         @default("")
+  notes         String         @default("")
+  items         ShipmentItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model ShipmentItem {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int      @default(1)
+  weight      Float    @default(0)
+  unitValue   Float    @default(0)
+  sku         String   @default("")
+  createdAt   DateTime @default(now())
+}

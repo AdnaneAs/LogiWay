@@ -1,0 +1,8 @@
+{
+  "name": "loomis-logistics",
+  "short_name": "Loomis",
+  "icons": [],
+  "theme_color": "#FACC15",
+  "background_color": "#FFFFFF",
+  "display": "standalone"
+}

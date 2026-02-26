@@ -1,0 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: #FFFFFF;
+    color: #000000;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: #FACC15;
+    color: #000000;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-yellow-400 text-black font-semibold rounded-full
+           hover:bg-yellow-300 transition-all duration-300
+           hover:shadow-lg hover:shadow-yellow-400/30
+           active:scale-95;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-black text-white font-semibold rounded-full
+           hover:bg-black/80 transition-all duration-300
+           active:scale-95;
+  }
+
+  .btn-ghost {
+    @apply px-6 py-3 bg-transparent text-black font-medium rounded-full
+           border-2 border-black/10 hover:border-black/30
+           transition-all duration-300;
+  }
+
+  .card {
+    @apply bg-white rounded-2xl border border-black/5 p-6
+           shadow-sm hover:shadow-md transition-shadow duration-300;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-black/[0.03] border border-black/10
+           rounded-xl text-black placeholder:text-black/30
+           focus:outline-none focus:border-yellow-400 focus:ring-2
+           focus:ring-yellow-400/20 transition-all duration-200;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .badge-pending {
+    @apply badge bg-yellow-100 text-yellow-800;
+  }
+
+  .badge-in-transit {
+    @apply badge bg-blue-100 text-blue-800;
+  }
+
+  .badge-out-for-delivery {
+    @apply badge bg-orange-100 text-orange-800;
+  }
+
+  .badge-delivered {
+    @apply badge bg-green-100 text-green-800;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00000020;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00000040;
+}
