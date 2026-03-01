@@ -110,6 +110,8 @@ export default function ShipmentsPage() {
     const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
     const [showAddressPicker, setShowAddressPicker] = useState(false);
     const [items, setItems] = useState<ShipmentItem[]>([{ ...emptyItem }]);
+    const [currency, setCurrency] = useState("USD");
+    const [weightUnit, setWeightUnit] = useState("lbs");
 
     // Client autocomplete
     const [clientQuery, setClientQuery] = useState("");
@@ -205,6 +207,8 @@ export default function ShipmentsPage() {
         setClientQuery("");
         setSelectedWarehouseId("");
         setShowAddressPicker(false);
+        setCurrency("USD");
+        setWeightUnit("lbs");
         setError("");
     };
 
@@ -1018,7 +1022,7 @@ export default function ShipmentsPage() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Total Weight (kg) — auto-calculated</label>
+                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Total Weight ({weightUnit}) — auto-calculated</label>
                                             <input type="number" value={weight} readOnly className="input-field bg-black/[0.02] cursor-not-allowed" />
                                         </div>
                                         <div>
@@ -1077,13 +1081,31 @@ export default function ShipmentsPage() {
                                             Items *
                                             <span className="text-black/25 ml-2 normal-case">({items.length} item{items.length > 1 ? "s" : ""})</span>
                                         </h3>
-                                        <button
-                                            onClick={addItem}
-                                            className="flex items-center gap-1 text-xs font-semibold text-yellow-600 hover:text-yellow-500 transition-colors"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                            Add Item
-                                        </button>
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] text-black/30">Currency</span>
+                                                <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="text-xs bg-black/[0.03] border border-black/10 rounded-lg px-2 py-1 focus:outline-none focus:border-yellow-400 cursor-pointer">
+                                                    <option value="USD">USD $</option>
+                                                    <option value="CAD">CAD $</option>
+                                                    <option value="EUR">EUR €</option>
+                                                    <option value="GBP">GBP £</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] text-black/30">Weight</span>
+                                                <select value={weightUnit} onChange={(e) => setWeightUnit(e.target.value)} className="text-xs bg-black/[0.03] border border-black/10 rounded-lg px-2 py-1 focus:outline-none focus:border-yellow-400 cursor-pointer">
+                                                    <option value="lbs">lbs</option>
+                                                    <option value="kg">kg</option>
+                                                </select>
+                                            </div>
+                                            <button
+                                                onClick={addItem}
+                                                className="flex items-center gap-1 text-xs font-semibold text-yellow-600 hover:text-yellow-500 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                                Add Item
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="space-y-3">
@@ -1111,18 +1133,18 @@ export default function ShipmentsPage() {
                                                         <input type="number" value={item.quantity || ""} onChange={(e) => updateItem(idx, "quantity", e.target.value === "" ? 0 : parseInt(e.target.value))} className="input-field !text-sm" min="1" placeholder="1" />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Weight (kg)</label>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Weight ({weightUnit})</label>
                                                         <input type="number" value={item.weight || ""} onChange={(e) => updateItem(idx, "weight", e.target.value === "" ? 0 : parseFloat(e.target.value))} className="input-field !text-sm" min="0" step="0.1" placeholder="0" />
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-5 gap-3 mt-3">
                                                     <div className="col-span-2">
-                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Unit Value ($)</label>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Unit Value ({currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$"})</label>
                                                         <input type="number" value={item.unitValue || ""} onChange={(e) => updateItem(idx, "unitValue", e.target.value === "" ? 0 : parseFloat(e.target.value))} className="input-field !text-sm" min="0" step="0.01" placeholder="0.00" />
                                                     </div>
                                                     <div className="col-span-3 flex items-end">
                                                         <p className="text-xs text-black/30 pb-2">
-                                                            Line total: <span className="font-bold text-black">${((item.quantity || 1) * (item.unitValue || 0)).toFixed(2)}</span>
+                                                            Line total: <span className="font-bold text-black">{currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$"}{((item.quantity || 1) * (item.unitValue || 0)).toFixed(2)}</span>
                                                         </p>
                                                     </div>
                                                 </div>
@@ -1132,9 +1154,9 @@ export default function ShipmentsPage() {
 
                                     {/* Items summary */}
                                     <div className="mt-3 flex items-center justify-between px-1 text-xs text-black/40">
-                                        <span>Total weight: {calcTotalWeight().toFixed(1)} kg</span>
+                                        <span>Total weight: {calcTotalWeight().toFixed(1)} {weightUnit}</span>
                                         <span className="font-bold text-black">
-                                            Grand total: ${items.reduce((sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitValue) || 0), 0).toFixed(2)}
+                                            Grand total: {currency === "EUR" ? "€" : currency === "GBP" ? "£" : "$"}{items.reduce((sum, it) => sum + (Number(it.quantity) || 1) * (Number(it.unitValue) || 0), 0).toFixed(2)} {currency}
                                         </span>
                                     </div>
                                 </div>
