@@ -13,6 +13,8 @@ interface Shipment {
     status: string;
     weight: number;
     clientName: string;
+    currency: string;
+    weightUnit: string;
     createdAt: string;
     updatedAt: string;
 }
@@ -372,7 +374,7 @@ export default function TrackingPage() {
                             className="grid grid-cols-2 md:grid-cols-4 gap-4"
                         >
                             {[
-                                { label: "Weight", value: `${shipment.weight} kg` },
+                                { label: "Weight", value: `${shipment.weight} ${shipment.weightUnit || "lbs"}` },
                                 { label: "Client", value: shipment.clientName },
                                 { label: "Created", value: new Date(shipment.createdAt).toLocaleDateString() },
                                 { label: "Updated", value: new Date(shipment.updatedAt).toLocaleString([], { dateStyle: "short", timeStyle: "short" }) },

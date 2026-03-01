@@ -955,7 +955,7 @@ export default function ShipmentsPage() {
                                                     {shipment.items?.length || 0}
                                                 </span>
                                             </td>
-                                            <td className="py-3 px-4 text-black/60">{shipment.weight} kg</td>
+                                            <td className="py-3 px-4 text-black/60">{shipment.weight} {shipment.weightUnit || "lbs"}</td>
                                             <td className="py-3 px-4">
                                                 <select
                                                     value={shipment.status}
