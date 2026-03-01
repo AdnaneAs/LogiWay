@@ -83,6 +83,8 @@ model Shipment {
   senderPhone   String         @default("")
   senderAddress String         @default("")
   notes         String         @default("")
+  currency      String         @default("USD")
+  weightUnit    String         @default("lbs")
   warehouseId   String?
   warehouse     Warehouse?     @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   items         ShipmentItem[]
@@ -100,4 +102,10 @@ model ShipmentItem {
   unitValue   Float    @default(0)
   sku         String   @default("")
   createdAt   DateTime @default(now())
+}
+
+model Setting {
+  key       String   @id
+  value     String   @default("")
+  updatedAt DateTime @updatedAt
 }

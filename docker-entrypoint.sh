@@ -4,7 +4,7 @@ set -e
 echo "Ensuring uploads directory exists..."
 mkdir -p /app/public/uploads
 
-echo "Running Prisma migrations..."
+echo "Syncing database schema..."
 npx prisma db push --skip-generate
 
 echo "Seeding database..."

@@ -18,7 +18,7 @@ export async function PATCH(
         const {
             status, trackingId, origin, destination, weight, clientName,
             senderName, senderEmail, senderPhone, senderAddress, notes,
-            items, warehouseId
+            items, warehouseId, currency, weightUnit
         } = body;
 
         const updateData: any = {};
@@ -43,6 +43,8 @@ export async function PATCH(
         if (senderPhone !== undefined) updateData.senderPhone = senderPhone;
         if (senderAddress !== undefined) updateData.senderAddress = senderAddress;
         if (notes !== undefined) updateData.notes = notes;
+        if (currency !== undefined) updateData.currency = currency;
+        if (weightUnit !== undefined) updateData.weightUnit = weightUnit;
         if (warehouseId !== undefined) updateData.warehouseId = warehouseId || null;
 
         // If items are provided, replace all items

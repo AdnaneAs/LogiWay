@@ -49,8 +49,8 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
-# Install runtime deps: sharp (image optimization), tsx + bcryptjs (seeding)
-RUN npm install --no-save sharp tsx bcryptjs
+# Install runtime deps: sharp (image optimization), prisma CLI (migrate deploy), tsx + bcryptjs (seeding)
+RUN npm install --no-save sharp prisma tsx bcryptjs
 
 USER nextjs
 

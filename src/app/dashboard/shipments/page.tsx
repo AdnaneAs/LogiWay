@@ -27,6 +27,8 @@ interface Shipment {
     senderPhone: string;
     senderAddress: string;
     notes: string;
+    currency: string;
+    weightUnit: string;
     items: ShipmentItem[];
     createdAt: string;
     updatedAt: string;
@@ -234,6 +236,8 @@ export default function ShipmentsPage() {
         setNotes(s.notes);
         setItems(s.items.length > 0 ? s.items.map(i => ({ ...i })) : [{ ...emptyItem }]);
         setSelectedWarehouseId((s as any).warehouseId || "");
+        setCurrency(s.currency || "USD");
+        setWeightUnit(s.weightUnit || "lbs");
         setError("");
         setShowModal(true);
     };
@@ -282,6 +286,8 @@ export default function ShipmentsPage() {
             status: formStatus, senderName, senderEmail, senderPhone, senderAddress, notes,
             items: validItems,
             warehouseId: selectedWarehouseId || null,
+            currency,
+            weightUnit,
         };
 
         try {
@@ -549,50 +555,95 @@ export default function ShipmentsPage() {
         if (clientDetails?.company) doc.text(clientDetails.company, rxX + 6, y + 32);
         y += 48;
 
+        // ── Per-shipment units ──
+        const shipCurrency = shipment.currency || "USD";
+        const shipWeightUnit = shipment.weightUnit || "lbs";
+        const getCurrSym = (cur: string) => cur === "EUR" ? "\u20ac" : cur === "GBP" ? "\u00a3" : "$";
+
         // ── Route ──
-        doc.setFillColor(...lightBg);
-        const routeCardW = (contentW - 30) / 2;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...black);
+        doc.text("ROUTE", margin, y);
+        y += 8;
 
-        // Origin card
-        doc.roundedRect(margin, y, routeCardW, 22, 2, 2, "F");
+        // Origin label + text
         doc.setFontSize(7);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...gray);
-        doc.text("ORIGIN", margin + 5, y + 7);
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...black);
-        doc.text(shipment.origin || "—", margin + 5, y + 16, { maxWidth: routeCardW - 10 });
-
-        // Arrow icon in center
-        const arrowX = margin + routeCardW + 5;
-        doc.setFillColor(...yellow);
-        doc.circle(arrowX + 10, y + 11, 6, "F");
+        doc.text("FROM", margin, y);
         doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(...black);
-        doc.text("\u2192", arrowX + 7, y + 14);
+        const originText = shipment.origin || "\u2014";
+        const originLines = doc.splitTextToSize(originText, contentW * 0.4);
+        doc.text(originLines, margin + 16, y);
+        const originEndX = margin + 16 + doc.getTextWidth(originLines[0] || originText);
 
-        // Destination card
-        const destX = margin + routeCardW + 30;
-        doc.setFillColor(...lightBg);
-        doc.roundedRect(destX, y, routeCardW, 22, 2, 2, "F");
+        // Styled arc arrow between origin and destination
+        const arcStartX = originEndX + 4;
+        const arcEndX = arcStartX + 22;
+        const arcY = y - 1;
+        const arcPeak = arcY - 5;
+
+        // Draw curved arc using bezier
+        doc.setDrawColor(...yellow);
+        doc.setLineWidth(0.8);
+        // @ts-ignore – jsPDF internal context for bezier curves
+        const ctx = doc.context2d || null;
+        if (ctx) {
+            ctx.beginPath();
+            ctx.moveTo(arcStartX, arcY);
+            ctx.quadraticCurveTo((arcStartX + arcEndX) / 2, arcPeak, arcEndX, arcY);
+            ctx.stroke();
+        } else {
+            // Fallback: approximate arc with line segments
+            const steps = 12;
+            for (let s = 0; s < steps; s++) {
+                const t1 = s / steps;
+                const t2 = (s + 1) / steps;
+                const x1 = (1 - t1) * (1 - t1) * arcStartX + 2 * (1 - t1) * t1 * ((arcStartX + arcEndX) / 2) + t1 * t1 * arcEndX;
+                const y1 = (1 - t1) * (1 - t1) * arcY + 2 * (1 - t1) * t1 * arcPeak + t1 * t1 * arcY;
+                const x2 = (1 - t2) * (1 - t2) * arcStartX + 2 * (1 - t2) * t2 * ((arcStartX + arcEndX) / 2) + t2 * t2 * arcEndX;
+                const y2 = (1 - t2) * (1 - t2) * arcY + 2 * (1 - t2) * t2 * arcPeak + t2 * t2 * arcY;
+                doc.line(x1, y1, x2, y2);
+            }
+        }
+        // Arrowhead at end of arc
+        doc.setFillColor(...yellow);
+        doc.triangle(arcEndX + 1.5, arcY, arcEndX - 1.5, arcY - 2, arcEndX - 1.5, arcY + 2, "F");
+
+        // Destination label + text
+        const destStartX = arcEndX + 6;
         doc.setFontSize(7);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...gray);
-        doc.text("DESTINATION", destX + 5, y + 7);
-        doc.setFontSize(9);
+        doc.text("TO", destStartX, y);
+        doc.setFontSize(10);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(...black);
-        doc.text(shipment.destination || "—", destX + 5, y + 16, { maxWidth: routeCardW - 10 });
-        y += 28;
+        const destText = shipment.destination || "\u2014";
+        const destMaxW = pw - margin - destStartX - 10;
+        const destLines = doc.splitTextToSize(destText, destMaxW > 30 ? destMaxW : 60);
+        doc.text(destLines, destStartX + 10, y);
+        const destLineCount = Array.isArray(destLines) ? destLines.length : 1;
+        y += Math.max(6, destLineCount * 4) + 6;
 
-        // Total weight on its own line
+        // Yellow thin separator
+        doc.setFillColor(...yellow);
+        doc.rect(margin, y, contentW, 0.5, "F");
+        y += 6;
+
+        // Total weight on its own line below route
         doc.setFontSize(8);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...gray);
-        doc.text(`Total Weight: ${shipment.weight} ${weightUnit}`, margin, y + 4);
-        y += 12;
+        doc.text("TOTAL WEIGHT", margin, y);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...black);
+        doc.text(`${shipment.weight} ${shipWeightUnit}`, margin + 34, y);
+        y += 10;
 
         // ── Items Table ──
         doc.setFontSize(9);
@@ -622,7 +673,7 @@ export default function ShipmentsPage() {
         doc.text("ITEM DESCRIPTION", col.desc, y + 4);
         doc.text("SKU / REF", col.sku, y + 4);
         doc.text("QTY", col.qty, y + 4);
-        doc.text(`WT (${weightUnit.toUpperCase()})`, col.wt, y + 4);
+        doc.text(`WT (${shipWeightUnit.toUpperCase()})`, col.wt, y + 4);
         doc.text("UNIT VAL", col.unit, y + 4);
         doc.text("AMOUNT", col.total, y + 4, { align: "right" });
         y += 10;
@@ -652,7 +703,7 @@ export default function ShipmentsPage() {
             doc.setTextColor(...black);
             doc.text(String(item.quantity || 1), col.qty, y + 1);
             doc.text(`${(item.weight || 0).toFixed(1)}`, col.wt, y + 1);
-            const currSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
+            const currSym = getCurrSym(shipCurrency);
             doc.text(`${currSym}${(item.unitValue || 0).toFixed(2)}`, col.unit, y + 1);
             doc.setFont("helvetica", "bold");
             doc.text(`${currSym}${lineTotal.toFixed(2)}`, col.total, y + 1, { align: "right" });
@@ -670,10 +721,10 @@ export default function ShipmentsPage() {
         doc.setTextColor(...black);
         doc.text("TOTAL", col.desc, y + 2);
         doc.text(`${tableItems.reduce((a, i) => a + (i.quantity || 1), 0)} pcs`, col.qty, y + 2);
-        doc.text(`${totalWeight.toFixed(1)} ${weightUnit}`, col.wt, y + 2);
+        doc.text(`${totalWeight.toFixed(1)} ${shipWeightUnit}`, col.wt, y + 2);
         doc.setTextColor(0, 120, 0);
         doc.setFontSize(10);
-        const totalCurrSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
+        const totalCurrSym = getCurrSym(shipCurrency);
         doc.text(`${totalCurrSym}${grandTotal.toFixed(2)}`, col.total, y + 2, { align: "right" });
         y += 16;
 
@@ -694,8 +745,8 @@ export default function ShipmentsPage() {
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...black);
-        const declaredSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
-        doc.text(`${declaredSym}${grandTotal.toFixed(2)} ${currency}`, margin + 4, y + 12);
+        const declaredSym = getCurrSym(shipCurrency);
+        doc.text(`${declaredSym}${grandTotal.toFixed(2)} ${shipCurrency}`, margin + 4, y + 12);
         doc.text("Freight Prepaid", margin + summaryW + 7, y + 12);
         doc.text("Standard", margin + (summaryW + 3) * 2 + 4, y + 12);
         y += 24;
