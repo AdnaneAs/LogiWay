@@ -550,19 +550,49 @@ export default function ShipmentsPage() {
         y += 48;
 
         // ── Route ──
+        doc.setFillColor(...lightBg);
+        const routeCardW = (contentW - 30) / 2;
+
+        // Origin card
+        doc.roundedRect(margin, y, routeCardW, 22, 2, 2, "F");
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...gray);
+        doc.text("ORIGIN", margin + 5, y + 7);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...black);
+        doc.text(shipment.origin || "—", margin + 5, y + 16, { maxWidth: routeCardW - 10 });
+
+        // Arrow icon in center
+        const arrowX = margin + routeCardW + 5;
+        doc.setFillColor(...yellow);
+        doc.circle(arrowX + 10, y + 11, 6, "F");
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...black);
+        doc.text("\u2192", arrowX + 7, y + 14);
+
+        // Destination card
+        const destX = margin + routeCardW + 30;
+        doc.setFillColor(...lightBg);
+        doc.roundedRect(destX, y, routeCardW, 22, 2, 2, "F");
+        doc.setFontSize(7);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(...gray);
+        doc.text("DESTINATION", destX + 5, y + 7);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(...black);
+        doc.text(shipment.destination || "—", destX + 5, y + 16, { maxWidth: routeCardW - 10 });
+        y += 28;
+
+        // Total weight on its own line
         doc.setFontSize(8);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...gray);
-        doc.text("ROUTE", margin, y + 4);
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...black);
-        doc.text(`${shipment.origin}  -->  ${shipment.destination}`, margin + 22, y + 4);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...gray);
-        doc.setFontSize(8);
-        doc.text(`Total Weight: ${shipment.weight} kg`, pw - margin, y + 4, { align: "right" });
-        y += 14;
+        doc.text(`Total Weight: ${shipment.weight} ${weightUnit}`, margin, y + 4);
+        y += 12;
 
         // ── Items Table ──
         doc.setFontSize(9);
@@ -592,7 +622,7 @@ export default function ShipmentsPage() {
         doc.text("ITEM DESCRIPTION", col.desc, y + 4);
         doc.text("SKU / REF", col.sku, y + 4);
         doc.text("QTY", col.qty, y + 4);
-        doc.text("WT (KG)", col.wt, y + 4);
+        doc.text(`WT (${weightUnit.toUpperCase()})`, col.wt, y + 4);
         doc.text("UNIT VAL", col.unit, y + 4);
         doc.text("AMOUNT", col.total, y + 4, { align: "right" });
         y += 10;
@@ -622,9 +652,10 @@ export default function ShipmentsPage() {
             doc.setTextColor(...black);
             doc.text(String(item.quantity || 1), col.qty, y + 1);
             doc.text(`${(item.weight || 0).toFixed(1)}`, col.wt, y + 1);
-            doc.text(`$${(item.unitValue || 0).toFixed(2)}`, col.unit, y + 1);
+            const currSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
+            doc.text(`${currSym}${(item.unitValue || 0).toFixed(2)}`, col.unit, y + 1);
             doc.setFont("helvetica", "bold");
-            doc.text(`$${lineTotal.toFixed(2)}`, col.total, y + 1, { align: "right" });
+            doc.text(`${currSym}${lineTotal.toFixed(2)}`, col.total, y + 1, { align: "right" });
             y += 8;
         });
 
@@ -639,10 +670,11 @@ export default function ShipmentsPage() {
         doc.setTextColor(...black);
         doc.text("TOTAL", col.desc, y + 2);
         doc.text(`${tableItems.reduce((a, i) => a + (i.quantity || 1), 0)} pcs`, col.qty, y + 2);
-        doc.text(`${totalWeight.toFixed(1)} kg`, col.wt, y + 2);
+        doc.text(`${totalWeight.toFixed(1)} ${weightUnit}`, col.wt, y + 2);
         doc.setTextColor(0, 120, 0);
         doc.setFontSize(10);
-        doc.text(`$${grandTotal.toFixed(2)}`, col.total, y + 2, { align: "right" });
+        const totalCurrSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
+        doc.text(`${totalCurrSym}${grandTotal.toFixed(2)}`, col.total, y + 2, { align: "right" });
         y += 16;
 
         // ── Shipment Summary Info ──
@@ -662,7 +694,8 @@ export default function ShipmentsPage() {
         doc.setFontSize(9);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...black);
-        doc.text(`$${grandTotal.toFixed(2)} CAD`, margin + 4, y + 12);
+        const declaredSym = currency === "EUR" ? "\u20ac" : currency === "GBP" ? "\u00a3" : "$";
+        doc.text(`${declaredSym}${grandTotal.toFixed(2)} ${currency}`, margin + 4, y + 12);
         doc.text("Freight Prepaid", margin + summaryW + 7, y + 12);
         doc.text("Standard", margin + (summaryW + 3) * 2 + 4, y + 12);
         y += 24;
