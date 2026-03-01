@@ -36,7 +36,7 @@ export async function POST(request: Request) {
         const {
             trackingId, origin, destination, weight, clientName, status,
             senderName, senderEmail, senderPhone, senderAddress, notes,
-            items
+            items, warehouseId
         } = body;
 
         if (!trackingId || !origin || !destination || !clientName) {
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
                 senderPhone: senderPhone || "",
                 senderAddress: senderAddress || "",
                 notes: notes || "",
+                warehouseId: warehouseId || null,
                 items: {
                     create: items.map((item: any) => ({
                         description: item.description,

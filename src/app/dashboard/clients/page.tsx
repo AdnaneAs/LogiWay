@@ -4,12 +4,24 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import SkeletonLoader from "@/components/SkeletonLoader";
 
+interface Address {
+    id: string;
+    label: string;
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+    isDefault: boolean;
+}
+
 interface Client {
     id: string;
     name: string;
     email: string;
     phone: string;
     company: string;
+    addresses: Address[];
     createdAt: string;
 }
 
@@ -20,7 +32,18 @@ interface ClientForm {
     company: string;
 }
 
+interface AddressForm {
+    label: string;
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+    isDefault: boolean;
+}
+
 const emptyForm: ClientForm = { name: "", email: "", phone: "", company: "" };
+const emptyAddress: AddressForm = { label: "", street: "", city: "", province: "", postalCode: "", country: "Canada", isDefault: false };
 
 export default function ClientsPage() {
     const [clients, setClients] = useState<Client[]>([]);
@@ -33,7 +56,13 @@ export default function ClientsPage() {
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
     const [search, setSearch] = useState("");
 
-    // Filtered clients
+    // Addresses state
+    const [addresses, setAddresses] = useState<Address[]>([]);
+    const [newAddresses, setNewAddresses] = useState<AddressForm[]>([]);
+    const [deletedAddressIds, setDeletedAddressIds] = useState<string[]>([]);
+    const [showAddressForm, setShowAddressForm] = useState(false);
+    const [addressForm, setAddressForm] = useState<AddressForm>({ ...emptyAddress });
+
     const filteredClients = clients.filter((c) => {
         const q = search.toLowerCase();
         return !q ||
@@ -43,9 +72,7 @@ export default function ClientsPage() {
             c.phone.toLowerCase().includes(q);
     });
 
-    useEffect(() => {
-        fetchClients();
-    }, []);
+    useEffect(() => { fetchClients(); }, []);
 
     const fetchClients = async () => {
         try {
@@ -62,6 +89,11 @@ export default function ClientsPage() {
     const openCreateModal = () => {
         setEditingClient(null);
         setForm(emptyForm);
+        setAddresses([]);
+        setNewAddresses([]);
+        setDeletedAddressIds([]);
+        setShowAddressForm(false);
+        setAddressForm({ ...emptyAddress });
         setError("");
         setShowModal(true);
     };
@@ -74,6 +106,11 @@ export default function ClientsPage() {
             phone: client.phone,
             company: client.company,
         });
+        setAddresses(client.addresses || []);
+        setNewAddresses([]);
+        setDeletedAddressIds([]);
+        setShowAddressForm(false);
+        setAddressForm({ ...emptyAddress });
         setError("");
         setShowModal(true);
     };
@@ -86,37 +123,61 @@ export default function ClientsPage() {
         setSaving(true);
         setError("");
         try {
+            let clientId: string;
+
             if (editingClient) {
-                // UPDATE
                 const res = await fetch(`/api/clients/${editingClient.id}`, {
                     method: "PATCH",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(form),
                 });
-                if (res.ok) {
-                    const updated = await res.json();
-                    setClients((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-                    setShowModal(false);
-                } else {
+                if (!res.ok) {
                     const err = await res.json();
                     setError(err.error || "Failed to update");
+                    setSaving(false);
+                    return;
                 }
+                clientId = editingClient.id;
             } else {
-                // CREATE
                 const res = await fetch("/api/clients", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(form),
                 });
-                if (res.ok) {
-                    const created = await res.json();
-                    setClients((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
-                    setShowModal(false);
-                } else {
+                if (!res.ok) {
                     const err = await res.json();
                     setError(err.error || "Failed to create");
+                    setSaving(false);
+                    return;
+                }
+                const created = await res.json();
+                clientId = created.id;
+            }
+
+            // Handle address changes
+            for (const addrId of deletedAddressIds) {
+                await fetch(`/api/clients/${clientId}/addresses/${addrId}`, { method: "DELETE" });
+            }
+            for (const addr of addresses) {
+                const original = editingClient?.addresses?.find(a => a.id === addr.id);
+                if (original && original.isDefault !== addr.isDefault) {
+                    await fetch(`/api/clients/${clientId}/addresses/${addr.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ isDefault: addr.isDefault }),
+                    });
                 }
             }
+            for (const newAddr of newAddresses) {
+                await fetch(`/api/clients/${clientId}/addresses`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(newAddr),
+                });
+            }
+
+            await fetchClients();
+            setShowModal(false);
         } catch {
             setError("Network error");
         } finally {
@@ -135,6 +196,50 @@ export default function ClientsPage() {
             console.error(err);
         }
     };
+
+    // Address helpers
+    const addNewAddress = () => {
+        if (!addressForm.street || !addressForm.city) {
+            setError("Street and city are required for an address.");
+            return;
+        }
+        const allAddresses = [...addresses.filter(a => !deletedAddressIds.includes(a.id)), ...newAddresses];
+        const shouldBeDefault = addressForm.isDefault || allAddresses.length === 0;
+
+        if (shouldBeDefault) {
+            setAddresses(prev => prev.map(a => ({ ...a, isDefault: false })));
+            setNewAddresses(prev => prev.map(a => ({ ...a, isDefault: false })));
+        }
+
+        setNewAddresses(prev => [...prev, { ...addressForm, isDefault: shouldBeDefault }]);
+        setAddressForm({ ...emptyAddress });
+        setShowAddressForm(false);
+        setError("");
+    };
+
+    const removeExistingAddress = (id: string) => {
+        setDeletedAddressIds(prev => [...prev, id]);
+    };
+
+    const removeNewAddress = (idx: number) => {
+        setNewAddresses(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const setDefaultExisting = (id: string) => {
+        setAddresses(prev => prev.map(a => ({ ...a, isDefault: a.id === id })));
+        setNewAddresses(prev => prev.map(a => ({ ...a, isDefault: false })));
+    };
+
+    const setDefaultNew = (idx: number) => {
+        setAddresses(prev => prev.map(a => ({ ...a, isDefault: false })));
+        setNewAddresses(prev => prev.map((a, i) => ({ ...a, isDefault: i === idx })));
+    };
+
+    const formatAddress = (a: { street: string; city: string; province: string; postalCode: string }) =>
+        [a.street, a.city, a.province, a.postalCode].filter(Boolean).join(", ");
+
+    const visibleExisting = addresses.filter(a => !deletedAddressIds.includes(a.id));
+    const totalAddresses = visibleExisting.length + newAddresses.length;
 
     return (
         <div>
@@ -195,6 +300,7 @@ export default function ClientsPage() {
                                         <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Company</th>
                                         <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Email</th>
                                         <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Phone</th>
+                                        <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Addresses</th>
                                         <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Added</th>
                                         <th className="text-left py-3 px-4 text-xs text-black/40 uppercase tracking-wider font-medium">Actions</th>
                                     </tr>
@@ -219,12 +325,16 @@ export default function ClientsPage() {
                                             <td className="py-3 px-4 text-black/60">{client.company || "—"}</td>
                                             <td className="py-3 px-4 text-black/60">{client.email || "—"}</td>
                                             <td className="py-3 px-4 text-black/60">{client.phone || "—"}</td>
+                                            <td className="py-3 px-4">
+                                                <span className="inline-flex items-center gap-1 text-xs bg-black/[0.04] px-2 py-0.5 rounded-md text-black/50">
+                                                    {client.addresses?.length || 0}
+                                                </span>
+                                            </td>
                                             <td className="py-3 px-4 text-black/40 text-xs">
                                                 {new Date(client.createdAt).toLocaleDateString()}
                                             </td>
                                             <td className="py-3 px-4">
                                                 <div className="flex items-center gap-2">
-                                                    {/* Edit */}
                                                     <button
                                                         onClick={() => openEditModal(client)}
                                                         className="p-1.5 rounded-lg hover:bg-yellow-400/10 text-black/40 hover:text-yellow-600 transition-colors"
@@ -234,7 +344,6 @@ export default function ClientsPage() {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                         </svg>
                                                     </button>
-                                                    {/* Delete */}
                                                     {deleteConfirm === client.id ? (
                                                         <div className="flex items-center gap-1">
                                                             <button
@@ -267,7 +376,7 @@ export default function ClientsPage() {
                                     ))}
                                     {clients.length === 0 && (
                                         <tr>
-                                            <td colSpan={6} className="py-12 text-center text-black/30 text-sm">
+                                            <td colSpan={7} className="py-12 text-center text-black/30 text-sm">
                                                 No clients found. Click &quot;New Client&quot; to add one.
                                             </td>
                                         </tr>
@@ -294,7 +403,7 @@ export default function ClientsPage() {
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"
+                            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 max-h-[90vh] overflow-y-auto"
                             onClick={(e) => e.stopPropagation()}
                         >
                             <div className="flex items-center gap-3 mb-6">
@@ -331,6 +440,136 @@ export default function ClientsPage() {
                                         <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input-field" placeholder="514-555-0000" />
                                     </div>
                                 </div>
+                            </div>
+
+                            {/* ── ADDRESSES SECTION ── */}
+                            <div className="mt-6 pt-5 border-t border-black/5">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-xs font-bold text-black/40 uppercase tracking-wider">
+                                        Addresses
+                                        <span className="text-black/25 ml-2 normal-case">({totalAddresses})</span>
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowAddressForm(true)}
+                                        className="flex items-center gap-1 text-xs font-semibold text-yellow-600 hover:text-yellow-500 transition-colors"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                        Add Address
+                                    </button>
+                                </div>
+
+                                {/* Existing addresses */}
+                                <div className="space-y-2">
+                                    {visibleExisting.map((addr) => (
+                                        <div key={addr.id} className="flex items-center gap-3 bg-black/[0.02] border border-black/5 rounded-xl px-4 py-3">
+                                            <button
+                                                onClick={() => setDefaultExisting(addr.id)}
+                                                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${addr.isDefault ? "border-yellow-400 bg-yellow-400" : "border-black/20 hover:border-yellow-400"
+                                                    }`}
+                                                title={addr.isDefault ? "Default address" : "Set as default"}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-black truncate">
+                                                    {addr.label && <span className="text-yellow-600 mr-1.5">{addr.label}</span>}
+                                                    {formatAddress(addr)}
+                                                </p>
+                                                {addr.isDefault && <span className="text-[10px] text-yellow-600 font-semibold">DEFAULT</span>}
+                                            </div>
+                                            <button
+                                                onClick={() => removeExistingAddress(addr.id)}
+                                                className="text-black/20 hover:text-red-500 transition-colors flex-shrink-0"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+
+                                    {/* New addresses (not yet saved) */}
+                                    {newAddresses.map((addr, idx) => (
+                                        <div key={`new-${idx}`} className="flex items-center gap-3 bg-yellow-400/5 border border-yellow-400/20 rounded-xl px-4 py-3">
+                                            <button
+                                                onClick={() => setDefaultNew(idx)}
+                                                className={`w-4 h-4 rounded-full border-2 flex-shrink-0 transition-colors ${addr.isDefault ? "border-yellow-400 bg-yellow-400" : "border-black/20 hover:border-yellow-400"
+                                                    }`}
+                                                title={addr.isDefault ? "Default address" : "Set as default"}
+                                            />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-black truncate">
+                                                    {addr.label && <span className="text-yellow-600 mr-1.5">{addr.label}</span>}
+                                                    {formatAddress(addr)}
+                                                </p>
+                                                <div className="flex items-center gap-2">
+                                                    {addr.isDefault && <span className="text-[10px] text-yellow-600 font-semibold">DEFAULT</span>}
+                                                    <span className="text-[10px] text-black/30">New</span>
+                                                </div>
+                                            </div>
+                                            <button
+                                                onClick={() => removeNewAddress(idx)}
+                                                className="text-black/20 hover:text-red-500 transition-colors flex-shrink-0"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Inline add address form */}
+                                <AnimatePresence>
+                                    {showAddressForm && (
+                                        <motion.div
+                                            initial={{ opacity: 0, height: 0 }}
+                                            animate={{ opacity: 1, height: "auto" }}
+                                            exit={{ opacity: 0, height: 0 }}
+                                            className="overflow-hidden"
+                                        >
+                                            <div className="mt-3 bg-black/[0.02] border border-black/5 rounded-xl p-4 space-y-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Label</label>
+                                                        <input type="text" value={addressForm.label} onChange={(e) => setAddressForm({ ...addressForm, label: e.target.value })} className="input-field !text-sm" placeholder="e.g. Head Office" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Street *</label>
+                                                        <input type="text" value={addressForm.street} onChange={(e) => setAddressForm({ ...addressForm, street: e.target.value })} className="input-field !text-sm" placeholder="123 Main St" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-3">
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">City *</label>
+                                                        <input type="text" value={addressForm.city} onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })} className="input-field !text-sm" placeholder="Montreal" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Province</label>
+                                                        <input type="text" value={addressForm.province} onChange={(e) => setAddressForm({ ...addressForm, province: e.target.value })} className="input-field !text-sm" placeholder="QC" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-medium text-black/40 mb-1">Postal Code</label>
+                                                        <input type="text" value={addressForm.postalCode} onChange={(e) => setAddressForm({ ...addressForm, postalCode: e.target.value })} className="input-field !text-sm" placeholder="H1A 2B3" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-3 pt-1">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={addressForm.isDefault}
+                                                            onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                                                            className="w-3.5 h-3.5 rounded border-black/20 text-yellow-400 focus:ring-yellow-400/20"
+                                                        />
+                                                        <span className="text-xs text-black/50">Set as default</span>
+                                                    </label>
+                                                    <div className="ml-auto flex gap-2">
+                                                        <button onClick={() => { setShowAddressForm(false); setAddressForm({ ...emptyAddress }); }} className="text-xs px-3 py-1.5 bg-black/5 text-black/50 rounded-lg hover:bg-black/10 transition-colors">Cancel</button>
+                                                        <button onClick={addNewAddress} className="text-xs px-3 py-1.5 bg-yellow-400 text-black rounded-lg font-semibold hover:bg-yellow-300 transition-colors">Add</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                {totalAddresses === 0 && !showAddressForm && (
+                                    <p className="text-xs text-black/25 mt-2">No addresses yet. Click &quot;Add Address&quot; to add one.</p>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-3 mt-8">

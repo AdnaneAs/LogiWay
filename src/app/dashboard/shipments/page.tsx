@@ -32,12 +32,37 @@ interface Shipment {
     updatedAt: string;
 }
 
+interface Address {
+    id: string;
+    label: string;
+    street: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+    isDefault: boolean;
+}
+
 interface Client {
     id: string;
     name: string;
     email: string;
     phone: string;
     company: string;
+    addresses: Address[];
+}
+
+interface Warehouse {
+    id: string;
+    name: string;
+    address: string;
+    city: string;
+    province: string;
+    postalCode: string;
+    country: string;
+    phone: string;
+    email: string;
+    contact: string;
 }
 
 interface ClientForm {
@@ -61,6 +86,7 @@ const statusOptions = [
 export default function ShipmentsPage() {
     const [shipments, setShipments] = useState<Shipment[]>([]);
     const [clients, setClients] = useState<Client[]>([]);
+    const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [showModal, setShowModal] = useState(false);
@@ -81,6 +107,8 @@ export default function ShipmentsPage() {
     const [senderPhone, setSenderPhone] = useState("");
     const [senderAddress, setSenderAddress] = useState("");
     const [notes, setNotes] = useState("");
+    const [selectedWarehouseId, setSelectedWarehouseId] = useState("");
+    const [showAddressPicker, setShowAddressPicker] = useState(false);
     const [items, setItems] = useState<ShipmentItem[]>([{ ...emptyItem }]);
 
     // Client autocomplete
@@ -105,6 +133,7 @@ export default function ShipmentsPage() {
         fetchShipments();
         fetchClients();
         fetchLogo();
+        fetchWarehouses();
     }, []);
 
     const fetchShipments = async () => {
@@ -129,6 +158,15 @@ export default function ShipmentsPage() {
         }
     };
 
+    const fetchWarehouses = async () => {
+        try {
+            const res = await fetch("/api/warehouses");
+            const data = await res.json();
+            if (Array.isArray(data)) setWarehouses(data);
+        } catch (err) {
+            console.error(err);
+        }
+    };
     const fetchLogo = async () => {
         try {
             const res = await fetch("/api/settings/logo");
@@ -165,6 +203,8 @@ export default function ShipmentsPage() {
         setNotes("");
         setItems([{ ...emptyItem }]);
         setClientQuery("");
+        setSelectedWarehouseId("");
+        setShowAddressPicker(false);
         setError("");
     };
 
@@ -189,6 +229,7 @@ export default function ShipmentsPage() {
         setSenderAddress(s.senderAddress);
         setNotes(s.notes);
         setItems(s.items.length > 0 ? s.items.map(i => ({ ...i })) : [{ ...emptyItem }]);
+        setSelectedWarehouseId((s as any).warehouseId || "");
         setError("");
         setShowModal(true);
     };
@@ -213,8 +254,8 @@ export default function ShipmentsPage() {
     };
 
     const handleSave = async () => {
-        if (!trackingId || !origin || !destination || !clientName) {
-            setError("Tracking ID, origin, destination, and client are required.");
+        if (!trackingId || !destination || !clientName) {
+            setError("Tracking ID, destination, and client are required.");
             return;
         }
         // Validate items
@@ -226,10 +267,17 @@ export default function ShipmentsPage() {
 
         setSaving(true);
         setError("");
+        // Derive origin from selected warehouse
+        const selectedWh = warehouses.find(w => w.id === selectedWarehouseId);
+        const derivedOrigin = selectedWh
+            ? [selectedWh.city, selectedWh.province].filter(Boolean).join(", ") || selectedWh.address
+            : origin || "";
+
         const payload = {
-            trackingId, origin, destination, weight, clientName,
+            trackingId, origin: derivedOrigin, destination, weight, clientName,
             status: formStatus, senderName, senderEmail, senderPhone, senderAddress, notes,
             items: validItems,
+            warehouseId: selectedWarehouseId || null,
         };
 
         try {
@@ -311,6 +359,42 @@ export default function ShipmentsPage() {
         setClientName(name);
         setClientQuery(name);
         setShowClientDropdown(false);
+        // Auto-fill destination with default address
+        const client = clients.find(c => c.name === name);
+        if (client?.addresses?.length) {
+            const defaultAddr = client.addresses.find(a => a.isDefault) || client.addresses[0];
+            const formatted = [defaultAddr.street, defaultAddr.city, defaultAddr.province, defaultAddr.postalCode].filter(Boolean).join(", ");
+            setDestination(formatted);
+        }
+    };
+
+    const selectWarehouse = (id: string) => {
+        setSelectedWarehouseId(id);
+        const wh = warehouses.find(w => w.id === id);
+        if (wh) {
+            setSenderName(wh.contact || wh.name);
+            setSenderEmail(wh.email);
+            setSenderPhone(wh.phone);
+            const addr = [wh.address, wh.city, wh.province, wh.postalCode].filter(Boolean).join(", ");
+            setSenderAddress(addr);
+            setOrigin([wh.city, wh.province].filter(Boolean).join(", ") || wh.address);
+        } else {
+            setSenderName("");
+            setSenderEmail("");
+            setSenderPhone("");
+            setSenderAddress("");
+        }
+    };
+
+    const getSelectedClientAddresses = (): Address[] => {
+        const client = clients.find(c => c.name === clientName);
+        return client?.addresses || [];
+    };
+
+    const pickClientAddress = (addr: Address) => {
+        const formatted = [addr.street, addr.city, addr.province, addr.postalCode].filter(Boolean).join(", ");
+        setDestination(formatted);
+        setShowAddressPicker(false);
     };
 
     const handleClientQueryChange = (val: string) => {
@@ -575,7 +659,7 @@ export default function ShipmentsPage() {
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...black);
         doc.text(`$${grandTotal.toFixed(2)} CAD`, margin + 4, y + 12);
-        doc.text("Net 30", margin + summaryW + 7, y + 12);
+        doc.text("Freight Prepaid", margin + summaryW + 7, y + 12);
         doc.text("Standard", margin + (summaryW + 3) * 2 + 4, y + 12);
         y += 24;
 
@@ -633,20 +717,20 @@ export default function ShipmentsPage() {
         doc.setFontSize(8);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...gray);
-        doc.text("SENDER / SHIPPER", margin, y);
-        doc.text("RECEIVER / CONSIGNEE", margin + sigW + 20, y);
+        // doc.text("SENDER / SHIPPER", margin, y);
+        doc.text("SENDER / SHIPPER", margin + sigW + 20, y);
         y += 12;
 
         // Signature lines
         doc.setDrawColor(180, 180, 180);
         doc.setLineWidth(0.4);
-        doc.line(margin, y, margin + sigW, y);
+        // doc.line(margin, y, margin + sigW, y);
         doc.line(margin + sigW + 20, y, margin + sigW * 2 + 20, y);
 
         doc.setFontSize(7);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(...gray);
-        doc.text("Signature", margin, y + 4);
+        // doc.text("Signature", margin, y + 4);
         doc.text("Signature", margin + sigW + 20, y + 4);
         y += 14;
 
@@ -908,14 +992,28 @@ export default function ShipmentsPage() {
                                             </AnimatePresence>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Origin *</label>
-                                            <input type="text" value={origin} onChange={(e) => setOrigin(e.target.value)} className="input-field" placeholder="e.g. Montreal, QC" />
-                                        </div>
+                                    <div className="mt-4">
                                         <div>
                                             <label className="block text-xs font-medium text-black/50 mb-1.5">Destination *</label>
-                                            <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field" placeholder="e.g. Toronto, ON" />
+                                            {getSelectedClientAddresses().length > 0 ? (
+                                                <select
+                                                    value={destination}
+                                                    onChange={(e) => setDestination(e.target.value)}
+                                                    className="input-field cursor-pointer"
+                                                >
+                                                    <option value="">— Select an address —</option>
+                                                    {getSelectedClientAddresses().map((addr) => {
+                                                        const formatted = [addr.street, addr.city, addr.province, addr.postalCode].filter(Boolean).join(", ");
+                                                        return (
+                                                            <option key={addr.id} value={formatted}>
+                                                                {addr.label ? `${addr.label} — ` : ""}{formatted}{addr.isDefault ? " ★" : ""}
+                                                            </option>
+                                                        );
+                                                    })}
+                                                </select>
+                                            ) : (
+                                                <input type="text" value={destination} onChange={(e) => setDestination(e.target.value)} className="input-field" placeholder="Select a client first to choose an address" />
+                                            )}
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 mt-4">
@@ -934,27 +1032,40 @@ export default function ShipmentsPage() {
                                     </div>
                                 </div>
 
-                                {/* Section: Sender Info */}
+                                {/* Section: Sender / Warehouse */}
                                 <div>
-                                    <h3 className="text-xs font-bold text-black/40 uppercase tracking-wider mb-3">Sender Information</h3>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <h3 className="text-xs font-bold text-black/40 uppercase tracking-wider mb-3">Sender / Warehouse</h3>
+                                    <div>
+                                        <label className="block text-xs font-medium text-black/50 mb-1.5">Select Warehouse</label>
+                                        <select
+                                            value={selectedWarehouseId}
+                                            onChange={(e) => selectWarehouse(e.target.value)}
+                                            className="input-field cursor-pointer"
+                                        >
+                                            <option value="">— Choose a warehouse —</option>
+                                            {warehouses.map((w) => (
+                                                <option key={w.id} value={w.id}>{w.name} — {[w.city, w.province].filter(Boolean).join(", ")}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 mt-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Full Name</label>
-                                            <input type="text" value={senderName} onChange={(e) => setSenderName(e.target.value)} className="input-field" placeholder="John Doe" />
+                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Sender Name</label>
+                                            <input type="text" value={senderName} onChange={(e) => setSenderName(e.target.value)} className="input-field" placeholder="Auto-filled from warehouse" />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Email</label>
-                                            <input type="email" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} className="input-field" placeholder="john@example.com" />
+                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Sender Email</label>
+                                            <input type="email" value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} className="input-field" placeholder="Auto-filled" />
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-4 mt-4">
+                                    <div className="grid grid-cols-2 gap-4 mt-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Phone</label>
-                                            <input type="tel" value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} className="input-field" placeholder="514-555-0000" />
+                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Sender Phone</label>
+                                            <input type="tel" value={senderPhone} onChange={(e) => setSenderPhone(e.target.value)} className="input-field" placeholder="Auto-filled" />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Address</label>
-                                            <input type="text" value={senderAddress} onChange={(e) => setSenderAddress(e.target.value)} className="input-field" placeholder="123 Main St, Montreal" />
+                                            <label className="block text-xs font-medium text-black/50 mb-1.5">Sender Address</label>
+                                            <input type="text" value={senderAddress} onChange={(e) => setSenderAddress(e.target.value)} className="input-field" placeholder="Auto-filled" />
                                         </div>
                                     </div>
                                 </div>

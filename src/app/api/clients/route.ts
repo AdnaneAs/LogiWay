@@ -13,6 +13,7 @@ export async function GET() {
     try {
         const clients = await prisma.client.findMany({
             orderBy: { name: "asc" },
+            include: { addresses: { orderBy: { createdAt: "asc" } } },
         });
         return NextResponse.json(clients);
     } catch (error) {

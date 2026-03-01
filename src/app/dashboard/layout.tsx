@@ -43,6 +43,15 @@ const sidebarLinks = [
         ),
     },
     {
+        href: "/dashboard/warehouses",
+        label: "Warehouses",
+        icon: (
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+            </svg>
+        ),
+    },
+    {
         href: "/dashboard/settings",
         label: "Settings",
         icon: (
